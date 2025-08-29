@@ -11,4 +11,3 @@ Action items:
 - M3: Q2 range + stability
 - M4: Q3 recursion
 
-(Add a new dated section for each meeting. Keep it short.)
