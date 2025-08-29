@@ -1,12 +1,3 @@
-"""
-Q1 – Encryption / Decryption / Verification
-
-- Reads "raw_text.txt"
-- Writes encrypted text to "outputs/encrypted_text.txt"
-- Decrypts back to "outputs/decrypted_text.txt"
-- Verifies decrypted == original
-"""
-
 from pathlib import Path
 
 RAW = Path(__file__).parent / "raw_text.txt"
@@ -46,33 +37,44 @@ def encrypt_text(s: str, shift1: int, shift2: int) -> str:
     return "".join(out)
 
 def decrypt_text(s: str, shift1: int, shift2: int) -> str:
-    """Invert the exact rules used in encrypt_text."""
+    """Robust inverse: build a mapping enc_char -> original_char by simulating encryption."""
+    def encrypt_char(ch: str) -> str:
+        if ch.islower():
+            if ch in ALPH_LO[:13]:        # a-m
+                return shift_char(ch, shift1 * shift2, ALPH_LO)
+            elif ch in ALPH_LO[13:]:      # n-z
+                return shift_char(ch, -(shift1 + shift2), ALPH_LO)
+            else:
+                return ch
+        elif ch.isupper():
+            if ch in ALPH_UP[:13]:        # A-M
+                return shift_char(ch, -shift1, ALPH_UP)
+            elif ch in ALPH_UP[13:]:      # N-Z
+                return shift_char(ch, shift2 ** 2, ALPH_UP)
+            else:
+                return ch
+        else:
+            return ch
+
+    # Build decryption table for all letters
+    decrypt_map = {}
+    for ch in ALPH_LO + ALPH_UP:
+        decrypt_map[encrypt_char(ch)] = ch
+
+    # Apply mapping; leave non-letters unchanged
     out = []
     for ch in s:
-        if ch.islower():
-            if ch in ALPH_LO[:13]:  # a-m encrypted by + shift1*shift2
-                out.append(shift_char(ch, -(shift1 * shift2), ALPH_LO))
-            elif ch in ALPH_LO[13:]:  # n-z encrypted by - (shift1+shift2)
-                out.append(shift_char(ch, +(shift1 + shift2), ALPH_LO))
-            else:
-                out.append(ch)
-        elif ch.isupper():
-            if ch in ALPH_UP[:13]:  # A-M encrypted by -shift1
-                out.append(shift_char(ch, +shift1, ALPH_UP))
-            elif ch in ALPH_UP[13:]:  # N-Z encrypted by + (shift2^2)
-                out.append(shift_char(ch, -(shift2 ** 2), ALPH_UP))
-            else:
-                out.append(ch)
-        else:
-            out.append(ch)
+        out.append(decrypt_map.get(ch, ch))
     return "".join(out)
 
 def encrypt_file(src: Path, dst: Path, shift1: int, shift2: int) -> None:
     text = src.read_text(encoding="utf-8")
+    dst.parent.mkdir(parents=True, exist_ok=True)
     dst.write_text(encrypt_text(text, shift1, shift2), encoding="utf-8")
 
 def decrypt_file(src: Path, dst: Path, shift1: int, shift2: int) -> None:
     text = src.read_text(encoding="utf-8")
+    dst.parent.mkdir(parents=True, exist_ok=True)
     dst.write_text(decrypt_text(text, shift1, shift2), encoding="utf-8")
 
 def verify_files(original: Path, decrypted: Path) -> bool:
