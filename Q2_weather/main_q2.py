@@ -1,93 +1,79 @@
-"""
-Q2 – Temperature analysis across ALL CSV files in ./temperatures
-
-Generates:
-- outputs/average_temp.txt
-- outputs/largest_temp_range_station.txt
-- outputs/temperature_stability_stations.txt
-"""
-
-from pathlib import Path
+﻿from pathlib import Path
 import pandas as pd
+import numpy as np
 
-TEMPS_DIR = Path(__file__).parent / "temperatures"
-OUT_DIR = Path(__file__).parent / "outputs"
+ROOT = Path(__file__).resolve().parent
+TEMPS_DIR = ROOT / "temperatures"
+OUT_DIR = ROOT / "outputs"
+OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-MONTHS = ["January","February","March","April","May","June",
-          "July","August","September","October","November","December"]
-
-MONTH_TO_SEASON = {
+MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"]
+SEASON_OF = {
     "December": "Summer", "January": "Summer", "February": "Summer",
     "March": "Autumn", "April": "Autumn", "May": "Autumn",
     "June": "Winter", "July": "Winter", "August": "Winter",
     "September": "Spring", "October": "Spring", "November": "Spring",
 }
 
-def load_all_csvs() -> pd.DataFrame:
-    frames = []
-    for csv_path in sorted(TEMPS_DIR.glob("*.csv")):
-        df = pd.read_csv(csv_path)
-        # Add year if present in file name
-        try:
-            year = int(csv_path.stem.split("_")[-1])
-        except Exception:
-            year = None
-        df["YEAR"] = year
-        frames.append(df)
-    if not frames:
-        return pd.DataFrame()
-    return pd.concat(frames, ignore_index=True)
+csvs = sorted(TEMPS_DIR.glob("*.csv"))
+if not csvs:
+    print(f"No CSV files found in {TEMPS_DIR}")
+    raise SystemExit(1)
 
-def compute_seasonal_average(long_df: pd.DataFrame, out_path: Path):
-    season_avg = (long_df.groupby("SEASON")["TEMP_C"]
-                  .mean()
-                  .reindex(["Summer","Autumn","Winter","Spring"]))
-    lines = [f"{season}: {val:.1f}°C" for season, val in season_avg.items() if pd.notna(val)]
-    out_path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+season_values = {s: [] for s in ["Summer","Autumn","Winter","Spring"]}
+by_station_values = {}
 
-def compute_largest_range(long_df: pd.DataFrame, out_path: Path):
-    station_cols = ["STATION_NAME","STN_ID"]
-    stats = long_df.groupby(station_cols)["TEMP_C"].agg(["min","max"]).rename(columns={"min":"MIN_C","max":"MAX_C"})
-    stats["RANGE_C"] = stats["MAX_C"] - stats["MIN_C"]
-    max_range = stats["RANGE_C"].max()
-    winners = stats[stats["RANGE_C"] == max_range].reset_index()
-    lines = [
-        f"Station {row['STATION_NAME']} (ID {int(row['STN_ID'])}): Range {row['RANGE_C']:.1f}°C (Max: {row['MAX_C']:.1f}°C, Min: {row['MIN_C']:.1f}°C)"
-        for _, row in winners.iterrows()
-    ]
-    out_path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+for path in csvs:
+    df = pd.read_csv(path)
+    month_cols = [c for c in MONTHS if c in df.columns]
+    df[month_cols] = df[month_cols].apply(pd.to_numeric, errors="coerce")
 
-def compute_stability(long_df: pd.DataFrame, out_path: Path):
-    station_cols = ["STATION_NAME","STN_ID"]
-    stds = long_df.groupby(station_cols)["TEMP_C"].std(ddof=0).to_frame("STDDEV_C")
-    min_std = stds["STDDEV_C"].min()
-    max_std = stds["STDDEV_C"].max()
-    most_stable = stds[stds["STDDEV_C"] == min_std].reset_index()
-    most_variable = stds[stds["STDDEV_C"] == max_std].reset_index()
+    for m in month_cols:
+        season = SEASON_OF[m]
+        vals = df[m].to_numpy(dtype="float64", copy=False)
+        season_values[season].extend(vals[~np.isnan(vals)].tolist())
 
-    lines = []
-    for _, row in most_stable.iterrows():
-        lines.append(f"Most Stable: Station {row['STATION_NAME']} (ID {int(row['STN_ID'])}): StdDev {row['STDDEV_C']:.1f}°C")
-    for _, row in most_variable.iterrows():
-        lines.append(f"Most Variable: Station {row['STATION_NAME']} (ID {int(row['STN_ID'])}): StdDev {row['STDDEV_C']:.1f}°C")
-    out_path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+    names = df["STATION_NAME"].astype(str).tolist()
+    arr = df[month_cols].to_numpy(dtype="float64")
+    for i, name in enumerate(names):
+        vals = arr[i, :]
+        by_station_values.setdefault(name, [])
+        by_station_values[name].extend(vals[~np.isnan(vals)].tolist())
 
-def main():
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    df = load_all_csvs()
-    if df.empty:
-        print(f"No CSV files found in {TEMPS_DIR}. Put all stations_group_*.csv there.")
-        return
+avg_lines = []
+for season in ["Summer","Autumn","Winter","Spring"]:
+    vals = np.array(season_values[season], dtype="float64")
+    mean = np.nanmean(vals) if vals.size else float("nan")
+    avg_lines.append(f"{season}: {mean:.1f}°C")
+(OUT_DIR / "average_temp.txt").write_text("\n".join(avg_lines), encoding="utf-8")
 
-    id_cols = [c for c in df.columns if c not in MONTHS]
-    long_df = df.melt(id_vars=id_cols, value_vars=MONTHS, var_name="MONTH", value_name="TEMP_C").dropna(subset=["TEMP_C"])
-    long_df["SEASON"] = long_df["MONTH"].map(MONTH_TO_SEASON)
+stats = []
+for name, vals in by_station_values.items():
+    a = np.array(vals, dtype="float64")
+    if a.size == 0:
+        continue
+    maxv = float(np.nanmax(a))
+    minv = float(np.nanmin(a))
+    rang = maxv - minv
+    std  = float(np.nanstd(a, ddof=0))
+    stats.append((name, rang, maxv, minv, std))
 
-    compute_seasonal_average(long_df, OUT_DIR / "average_temp.txt")
-    compute_largest_range(long_df, OUT_DIR / "largest_temp_range_station.txt")
-    compute_stability(long_df, OUT_DIR / "temperature_stability_stations.txt")
+if not stats:
+    raise SystemExit("No station data read")
 
-    print("Generated outputs in", OUT_DIR)
+max_range = max(s[1] for s in stats)
+largest = [s for s in stats if abs(s[1]-max_range) < 1e-9]
+range_lines = [f"{name}: Range {rang:.1f}°C (Max: {maxv:.1f}°C, Min: {minv:.1f}°C)" for name,rang,maxv,minv,std in largest]
+(OUT_DIR / "largest_temp_range_station.txt").write_text("\n".join(range_lines), encoding="utf-8")
 
-if __name__ == "__main__":
-    main()
+stds = [s[4] for s in stats]
+min_std, max_std = min(stds), max(stds)
+most_stable   = [s for s in stats if abs(s[4]-min_std) < 1e-9]
+most_variable = [s for s in stats if abs(s[4]-max_std) < 1e-9]
+stable_lines   = [f"Most Stable: {name}: StdDev {std:.1f}°C"   for name,r,g,h,std in most_stable]
+variable_lines = [f"Most Variable: {name}: StdDev {std:.1f}°C" for name,r,g,h,std in most_variable]
+(OUT_DIR / "temperature_stability_stations.txt").write_text("\n".join(stable_lines + variable_lines), encoding="utf-8")
+
+print("Wrote:")
+for fn in ["average_temp.txt","largest_temp_range_station.txt","temperature_stability_stations.txt"]:
+    print(" -", fn)
