@@ -1,7 +1,7 @@
 """
 Q3 – Recursive turtle pattern on a polygon
 - User inputs: number of sides, side length, recursion depth.
-- Applies an inward indentation on each edge (Koch-like), recursively.
+- Applies an inward indentation on each edge , recursively.
 """
 
 import turtle as T
