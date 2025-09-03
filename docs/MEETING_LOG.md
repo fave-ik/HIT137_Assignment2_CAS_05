@@ -1,15 +1,26 @@
 # MEETING LOG
 
 ## 2025-08-29
-Attendees: <names>
-Decisions:
-- Roles assigned (Member 1–4)
-- Branch workflow agreed
-Action items:
-- M1: Q1 encryption/decryption
-- M2: Q2 seasonal averages
-- M3: Q2 range + stability
-- M4: Q3 recursion
+
+Roles assigned:
+30/08/2025 — Esangbedo Favour (fave-ik)
+Q1 – File Encryption/Decryption
+
+• Implemented Q1_encryption/main_q1.py.
+• Reads Q1_encryption/raw_text.txt and writes to Q1_encryption/outputs/:
+  - encrypted_text.txt — encrypted content
+  - decrypted_text.txt — decrypted content
+• Added verification step that compares decrypted_text.txt to raw_text.txt and prints
+  “Verification: Successful/Failed”.
+• Followed the required rules:
+  - lowercase a–m: shift forward by (shift1 * shift2)
+  - lowercase n–z: shift backward by (shift1 + shift2)
+  - uppercase A–M: shift backward by shift1
+  - uppercase N–Z: shift forward by (shift2²)
+  - non-letters unchanged
+• Implemented a mapping-based inverse so decryption exactly reverses encryption.
+• Tested locally with  shift pairs (0,0) and confirmed the decrypted text
+  matches the original; outputs committed to the repo.
 
 01/09/2025 — Suman (Suman39)
 
@@ -21,3 +32,10 @@ Action items:
   - `temperature_stability_stations.txt` — most stable & most variable (StdDev)
 - Ignored NaN values as required; used Australian seasons (Dec–Feb, Mar–May, Jun–Aug, Sep–Nov).
 - Verified results locally; opened PR and helped resolve text-file conflicts from Q1 outputs by keeping `main` versions.
+
+03/09/2025 — Mercy Kabang (Maeexox)
+Q3 – Turtle Recursion
+
+• Implemented Q3_turtle/main_q3.py using a recursive fractal_edge + polygon driver.
+• Parameters: sides, length, depth; draws the pattern with turtle.
+• Tested locally; structured into small functions for clarity. 
